@@ -38,4 +38,101 @@
   (format-symbol "lambda_~a" n))
 
 (define (L1→L2 e)
-  e)
+  (match e
+    [`(L1: λ ,n ,expr)
+     (compiled:L2 `((L2: closure ,(lambda_ n)))
+                  (append `((,(lambda_ n) ,(compiled:L2-code (L1→L2 expr)))) (compiled:L2-λs (L1→L2 expr))))]
+    [`(L1: app ,e1 ,e2)
+     (compiled:L2 (append
+                   (compiled:L2-code (L1→L2 e1))
+                   '((L2: push_result))
+                   (compiled:L2-code (L1→L2 e2))
+                   '((L2: call)))
+                  (append
+                   (compiled:L2-λs (L1→L2 e1))
+                   (compiled:L2-λs (L1→L2 e2))))]
+    [`(L1: set! ,id ,expr)
+     (compiled:L2
+      (append (compiled:L2-code (L1→L2 expr)) `((L2: set ,id)))
+      (compiled:L2-λs (L1→L2 expr)))]
+    [`(L1: if ,n ,e1 ,e2 ,e3)
+     (compiled:L2
+      (append
+       (compiled:L2-code (L1→L2 e1))
+       `((L2: jump_false ,(format-symbol "else_~a" n)))
+       (compiled:L2-code (L1→L2 e2))
+       `((L2: jump ,(format-symbol "end_~a" n)))
+       `((L2: label ,(format-symbol "else_~a" n)))
+       (compiled:L2-code (L1→L2 e3))
+       `((L2: label ,(format-symbol "end_~a" n))))
+      (append (compiled:L2-λs (L1→L2 e1))
+              (compiled:L2-λs (L1→L2 e2))
+              (compiled:L2-λs (L1→L2 e3))))]
+    ['(L1: var +)
+     (compiled:L2 '((L2: closure make_add)) '())]
+    ['(L1: var *)
+     (compiled:L2 '((L2: closure make_multiply)) '())] 
+    ['(L1: var <)
+     (compiled:L2 '((L2: closure make_less_than)) '())]
+    ['(L1: var call/ec)
+     (compiled:L2 '((L2: closure call_ec))) '()]
+    [`(L1: datum ,i)
+     (compiled:L2 `((L2: set_result ,i)) '())]
+    [`(L1: var ,n)
+     (compiled:L2 `((L2: variable ,n)) '())]
+    [_ e]))
+
+(module+ test
+  (check-equal? (L1→L2 '(L1: λ 0 (L1: var 0)))
+                (compiled:L2 '((L2: closure lambda_0))
+                             '((lambda_0 ((L2: variable 0))))))
+
+  (check-equal? (L1→L2 '(L1: app (L1: λ 0 (L1: var 0)) (L1: datum 42)))
+                (compiled:L2 '((L2: closure lambda_0)
+                               (L2: push_result)
+                               (L2: set_result 42)
+                               (L2: call))
+                             '((lambda_0 ((L2: variable 0))))))
+
+  (check-equal? (L1→L2 '(L1: λ 2 (L1: λ 1 (L1: λ 0 (L1: var 2)))))
+                (compiled:L2 '((L2: closure lambda_2))
+                             '((lambda_2 ((L2: closure lambda_1)))
+                               (lambda_1 ((L2: closure lambda_0)))
+                               (lambda_0 ((L2: variable 2))))))
+  
+  (check-equal? (L1→L2 '(L1: app (L1: λ 0 (L1: datum 42)) (L1: λ 1 (L1: datum 0))))
+                (compiled:L2
+                 '((L2: closure lambda_0) (L2: push_result) (L2: closure lambda_1) (L2: call))
+                 '((lambda_0 ((L2: set_result 42))) (lambda_1 ((L2: set_result 0))))))
+  
+  (check-equal? (L1→L2 '(L1: app (L1: app (L1: var +) (L1: datum 42)) (L1: datum 1)))
+                (compiled:L2
+                 '((L2: closure make_add) (L2: push_result) (L2: set_result 42) (L2: call) (L2: push_result) (L2: set_result 1) (L2: call))
+                 '()))
+  (check-equal? (L1→L2 '(L1: app (L1: app (L1: var *) (L1: datum 42)) (L1: datum 2)))
+                (compiled:L2
+                 '((L2: closure make_multiply) (L2: push_result) (L2: set_result 42) (L2: call) (L2: push_result) (L2: set_result 2) (L2: call))
+                 '()))
+  (check-equal? (L1→L2 '(L1: app (L1: app (L1: var <) (L1: datum 42)) (L1: datum 43)))
+                (compiled:L2
+                 '((L2: closure make_less_than) (L2: push_result) (L2: set_result 42) (L2: call) (L2: push_result) (L2: set_result 43) (L2: call))
+                 '()))
+  (check-equal? (L1→L2 '(L1: set! 0 (L1: λ 2 (L1: λ 1 (L1: λ 0 (L1: var 2))))))
+                (compiled:L2
+                 '((L2: closure lambda_2)
+                   (L2: set 0))
+                 '((lambda_2 ((L2: closure lambda_1)))
+                   (lambda_1 ((L2: closure lambda_0)))
+                   (lambda_0 ((L2: variable 2))))))
+  (check-equal? (L1→L2 '(L1: if 0 (L1: λ 0 (L1: var 0)) (L1: λ 1 (L1: var 0)) (L1: λ 2 (L1: var 0))))
+                (compiled:L2
+                 '((L2: closure lambda_0)
+                   (L2: jump_false else_0)
+                   (L2: closure lambda_1)
+                   (L2: jump end_0)
+                   (L2: label else_0)
+                   (L2: closure lambda_2)
+                   (L2: label end_0))
+                 '((lambda_0 ((L2: variable 0)))
+                   (lambda_1 ((L2: variable 0)))
+                   (lambda_2 ((L2: variable 0)))))))
