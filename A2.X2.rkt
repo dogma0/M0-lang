@@ -3,7 +3,7 @@
 (provide L2→X2
          Mac? heap-size postamble)
 
-(require "A1.L2.rkt")
+(require "A2.L2.rkt")
 
 (module+ test (require rackunit))
 
@@ -180,48 +180,68 @@
 
 ; Set result to integer i.
 (define (set_result i)
-  (list))
+  (movq (constant i) result))
 
 ; Push result onto the stack.
 (define (push_result)
-  (list))
+  (pushq result))
 
 ; Put a closure on the heap.
 ;   A closure is a pair of body address and an env.
 ;   The closure is put at the address referred to by next, and then next is adjusted
 ;    to point to the next place to put a pair.
 (define (closure name)
-  (list))
+  (list (movq (label-reference name) (★ next))
+        (movq env (★ next 1))
+        (movq next result)
+        (addq (constant 16) next)))
+
+; TODO: Write retq here?
 
 ; Call the closure that's on the stack, with the argument that's in result.
 ;   Temporarily stores env on the stack.
 ;   Sets env to a new environment containing the closure's environment and the argument.
 ;   Calls the closure.
 (define (call)
-  (list))
+  (list
+   (popq temp)
+   (pushq env)
+   ; storing a pointer to closure's env as parent environment
+   (movq (★ temp 1) (★ next))
+   ; put argument into env
+   (movq result (★ next 1))
+   (movq next env)
+   (addq (constant 16) next)
+   (call (★ temp))))
 
 ; Puts the value of the variable n levels up from env, into result.
 ;   To “loop” n times: emits n statements.
 (define (variable n)
-  (list))
+  (append
+   (list (movq env temp))
+   (build-list n (λ (_) (movq (★ temp) temp)))
+   (list (movq (★ temp 1) result))))
 
 ; Sets the variable n levels up from env, to the value of result.
 ;   To “loop” n times: emits n statements.
 (define (set n)
-  (list))
+  (append
+   (list (movq env temp))
+   (build-list n (λ (_) (movq (★ temp) temp)))
+   (list (movq result (★ temp 1)))))
 
 ; Names the current statement address.
 (define (label name)
-  (list))
+  (list (~a name ":")))
 
 ; Jumps to a named statement address.
 (define (jump name)
-  (list))
+  (jmp-label (label-reference name)))
 
 ; Jumps to a named statement address, if result is false.
 ;   False is represented by 0.
 (define (jump_false name)
-  (list))
+  (list (je-label (label-reference name))))
 
 #| L2 to X2
    ======== |#
