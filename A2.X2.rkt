@@ -205,16 +205,16 @@
 ;   Calls the closure.
 (define (call)
   (list
-   (popq temp) ; temp[0] == f and temp[1] == closure_env_ptr
-   (pushq env)  
-   ; storing a pointer to closure's env as parent environment
-   (movq (★ temp 0) temp) ;temp = temp[0]
-   (movq temp (★ next)) ;next[0] = temp[0] or f
-   ; put argument into env
-   (movq result (★ next 1)) ; next[1] = result
+   (popq temp) ; env[0] = func_ptr and env[1] = closure_env_ptr
+   (pushq env)
+   ; --- Making and changing into new environment ---
+   (movq (★ temp 1) env) ; next[0] = temp[1] or closure_env_ptr
+   (movq env (★ next 0))
+   (movq result (★ next 1)) ; next[1] = result or argument
    (movq next env) ; env = next, we want env[0] == f and env[1] == closure_env_ptr
    (addq (constant 16) next)
-   (callq env)
+   ; --- End Making and changing into new environment ---
+   (callq temp)
    (popq env)))
 
 ; Puts the value of the variable n levels up from env, into result.
@@ -280,6 +280,21 @@
 #;(define + (λ_make_add (variable_1)
                         (λ_add (variable_0)
                                (primitive-addition variable_0 variable_1))))
+(define (make_add)
+  (labelled
+   'make_add
+   (closure 'add)
+   (retq)))
+
+(define (add)
+  (labelled
+   'add
+   (variable 0)
+   (pushq result)
+   (variable 1)
+   (popq temp)
+   (addq temp result)
+   (retq)))
 
 ; L1→L2 translates ‘+’ to a statement that creates a make_add closure.
 (module+ test
@@ -353,4 +368,4 @@
 
 ; Put X2 versions of make_less_than and less_than in RTL below.
 
-(define RTL (list))
+(define RTL (list (make_add) (add)))
