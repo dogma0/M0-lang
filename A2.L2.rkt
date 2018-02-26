@@ -75,7 +75,7 @@
     ['(L1: var <)
      (compiled:L2 '((L2: closure make_less_than)) '())]
     ['(L1: var call/ec)
-     (compiled:L2 '((L2: closure call_ec))) '()]
+     (compiled:L2 '((L2: closure call_ec)) '())]
     [`(L1: datum ,i)
      (compiled:L2 `((L2: set_result ,i)) '())]
     [`(L1: var ,n)

@@ -8,7 +8,7 @@
 (module+ test (require rackunit))
 
 ; Whether to emit code for the Mac, that Apple's gcc wrapper for clang handles. |#
-(define Mac? (make-parameter #false))
+(define Mac? (make-parameter #true))
 
 ; Size of the heap.
 (define heap-size (make-parameter (/ (* 4 (expt 2 30)) 8))) ; 4G of 8-byte data.
@@ -191,7 +191,8 @@
 ;   The closure is put at the address referred to by next, and then next is adjusted
 ;    to point to the next place to put a pair.
 (define (closure name)
-  (list (movq (label-reference name) (★ next))
+  (list (movq (label-reference name) temp)
+        (movq temp (★ next))
         (movq env (★ next 1))
         (movq next result)
         (addq (constant 16) next)))
@@ -204,15 +205,17 @@
 ;   Calls the closure.
 (define (call)
   (list
-   (popq temp)
-   (pushq env)
+   (popq temp) ; temp[0] == f and temp[1] == closure_env_ptr
+   (pushq env)  
    ; storing a pointer to closure's env as parent environment
-   (movq (★ temp 1) (★ next))
+   (movq (★ temp 0) temp) ;temp = temp[0]
+   (movq temp (★ next)) ;next[0] = temp[0] or f
    ; put argument into env
-   (movq result (★ next 1))
-   (movq next env)
+   (movq result (★ next 1)) ; next[1] = result
+   (movq next env) ; env = next, we want env[0] == f and env[1] == closure_env_ptr
    (addq (constant 16) next)
-   (call (★ temp))))
+   (callq env)
+   (popq env)))
 
 ; Puts the value of the variable n levels up from env, into result.
 ;   To “loop” n times: emits n statements.
@@ -232,16 +235,18 @@
 
 ; Names the current statement address.
 (define (label name)
-  (list (~a name ":")))
+  (labelled name))
 
 ; Jumps to a named statement address.
 (define (jump name)
-  (jmp-label (label-reference name)))
+  (jmp-label name))
 
 ; Jumps to a named statement address, if result is false.
 ;   False is represented by 0.
 (define (jump_false name)
-  (list (je-label (label-reference name))))
+  (list
+   (cmpq (constant 0) result)
+   (je-label name)))
 
 #| L2 to X2
    ======== |#
@@ -263,6 +268,7 @@
 (define (λ→X2 a-λ) (labelled (first a-λ)
                              (map l2→X2 (second a-λ))
                              (retq)))
+
 
 #| Runtime Library
    =============== |#
