@@ -71,6 +71,7 @@
 
 (define (movq from to) (~a 'movq " " from   ", " to))
 (define (addq from to) (~a 'addq " " from   ", " to))
+(define (imulq from to) (~a 'imulq " " from ", " to))
 
 #| Integer Constants
    =================
@@ -296,6 +297,21 @@
    (addq temp result)
    (retq)))
 
+(define (make_multiply)
+  (labelled
+   'make_multiply
+   (closure 'multiply)
+   (retq)))
+
+(define (multiply)
+  (labelled
+   'multiply
+   (variable 0)
+   (pushq result)
+   (variable 1)
+   (popq temp)
+   (imulq temp result)
+   (retq)))
 ; L1→L2 translates ‘+’ to a statement that creates a make_add closure.
 (module+ test
   (check-equal? (L1→L2 '(L1: var +)) (compiled:L2
@@ -387,4 +403,9 @@
 
 ; Put X2 versions of make_less_than and less_than in RTL below.
 
-(define RTL (list (make_add) (add) (make_less_than) (less_than)))
+(define RTL (list (make_add)
+                  (add)
+                  (make_less_than)
+                  (less_than)
+                  (make_multiply)
+                  (multiply)))
