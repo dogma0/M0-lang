@@ -353,6 +353,25 @@
                                       '((L2: closure make_less_than))
                                       '())))
 
+
+(define (make_less_than)
+  (labelled
+   'make_less_than
+   (closure 'less_than)
+   (retq)))
+
+(define (less_than)
+  (labelled
+   'less_than
+   (variable 0)
+   (pushq result)
+   (variable 1)
+   (popq temp)
+   (cmpq temp result)
+   (setl result-byte)
+   (movzbq result-byte result)
+   (retq)))
+
 ; The CPU flags set by a comparison can be stored as a byte, which we then “widen” to a 64 bit value.
 ; if result < temp
 ;    result = 1
@@ -368,4 +387,4 @@
 
 ; Put X2 versions of make_less_than and less_than in RTL below.
 
-(define RTL (list (make_add) (add)))
+(define RTL (list (make_add) (add) (make_less_than) (less_than)))
