@@ -61,11 +61,10 @@
   (define env′ (for/hash ([t env]) (values (transformer-name t) (transformer-function t))))
 
   (local [(define (expand e)
-            
+            (println e)
             (match e
               
               ; Head identifier determines meaning: pre-order traversal.
-
               ; New forms.
               [`(,head . ,_) #:when (dict-has-key? env′ head)
                              ; Internal node can re-arrange subtree, in particular its subtrees.

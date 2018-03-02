@@ -27,7 +27,7 @@
  M0 is meant to be for humans to write programs in, so we won't tag it.
 
  There are seventeen kinds of expression, corresponding to the provides of the form ‘T:<id>’ above.
- For each of those, except T:*id*, T:*datum*, and T:*app*, there's an M0 expression (<id> <part> ...).
+ For each of those, except T:*id*, T:*datum*, and T:*app*, there's an M0 expression (<id> <part> ...). TODO: What (<id> <part>) ?
 
  Function application is then any other expression of the form: (<part> ...).
    During expansion, the macro system turns that into (*app* <id>), for T:*app* to transform.
@@ -38,7 +38,7 @@
  An integer is an M0 expression meaning a constant.
   During expansion, the macro system turns that into (*datum* <id>), for T:*datum* to transform.
 
- It's assumed that M0 programmers will not use identifiers surrounded by asterisks. |#
+ It's assumed that M0 programmers will not use identifiers surrounded by asterisks. TODO Why does that matter?:|#
 
 ; An M0 expression:
 #;(λ (f a b)
@@ -90,13 +90,41 @@
 ; Transform those directly to their L0 form.
 
 (define-transformer T:*id* *id*
-  [e e])
+  [`(*id* ,name) `(L0: var ,name)])
+
+#;(module+ test
+    (check-equal?
+     ((transformer-function T:*id*) '(*id* x))
+     '(L0: var x)))
+
 (define-transformer T:*datum* *datum*
-  [e e])
+  [`(*datum* ,e) `(L0: datum ,e)])
+
+#;(module+ test
+    (check-equal?
+     ((transformer-function T:*datum*) '(*datum* 99))
+     '(L0: datum 99)))
+
 (define-transformer T:set! set!
-  [e e])
+  [`(set! ,id ,e) `(L0: set! ,id ,e)])
+
+#;(module+ test
+    (check-equal?
+     ((transformer-function T:set!) '(set! x (*datum* 99)))
+     '(L0: set! x (*datum* 99))))
+
 (define-transformer T:if if
-  [e e])
+  [`(if ,e1 ,e2 ,e3) `(L0: if ,e1 ,e2 ,e3)])
+
+#;(module+ test
+    (check-equal?
+     ((transformer-function T:if) '(if 0 10 11))
+     '(L0: if 0 10 11)))
+
+#;(module+ test
+    (check-equal?
+     (expand '(set! x (*datum* 99)) (list T:*datum* T:*id* T:set!))
+     '(L0: set! x (L0: datum 99))))
 
 ; λ
 ; -
@@ -110,7 +138,14 @@
 ; Transform the unary single-body-expression form to the L0 form.
 
 (define-transformer T:λ λ
-  [e e])
+  [`(λ (,id) ,body ...)
+   `(L0: λ (,id) (block ,body))]
+  [`(λ () ,body ...)
+   `(λ (_) (block ,body))]
+  [`(λ (,id ...) ,body ...)
+   `(λ (,(first id))
+      (λ ,(rest id)
+        (block ,body)))])
 
 
 ; *app*
@@ -121,7 +156,9 @@
 ; Transform the unary form to the L0 form.
 
 (define-transformer T:*app* *app*
-  [e e])
+  [`(*app* ,f ,a) `(L0: app ,f ,a)]
+  [`(*app* ,f) `(L0: app (block))]
+  [`(*app* ,f ,a ...) `(*app* (*app* ,f ,(first a)) ,(rest a))])
 
 
 ; block
@@ -141,9 +178,30 @@
 ;  the dummy value.
 
 (define-transformer T:block block
-  [e e])
+  [`(block ,e) #:when (and (list? e) (equal? (length e) 1)) (first e)]
+  [`(block ,e) `(let ([_ ,(first e)]) (block ,(rest e)))]
+  [`(block ,(list)) 0])
 
-
+#;(module+ test
+    (check-equal? ((transformer-function T:λ) '(λ () (*datum* 98)))
+                  '(λ (_) (block ((*datum* 98)))))
+    (check-equal? ((transformer-function T:block) '(block ((*datum* 98))))
+                  '(*datum* 98))
+    (check-equal? (expand '(λ () (*datum* 98)) (list T:block T:λ T:*datum*))
+                  '(L0: λ (_) (L0: datum 98)))
+    (check-equal? (expand '(*app* (λ (a) (*datum* 98)) (*datum* 99)) (list T:block T:λ T:*app* T:*datum*))
+                  '(L0: app (L0: λ (a) (L0: datum 98)) (L0: datum 99)))
+    (check-equal? (expand '(*app* (λ (a b) (λ () (*datum* 98))) (λ (c d) (*datum* 99)))
+                          (list T:block T:*app* T:λ T:*datum*))
+                  '(L0: app (L0: λ (a) (L0: λ (b) (L0: λ (_) (L0: datum 98))))
+                        (L0: λ (c) (L0: λ (d) (L0: datum 99)))))
+    (check-equal? ((transformer-function T:block)
+                   '(block ((*datum* 99)
+                            (*datum* 100))))
+                  '(let ([_ (*datum* 99)])
+                     (block ((*datum* 100)))))
+    (check-equal? (expand '(*app* (λ (x) (block ((*datum* 3)))) 100) Ts)
+                  '(L0: app (L0: λ (x) (L0: datum 3)) (L0: datum 100))))
 ; let
 ; ---
 #;(let ([<id> <init>]
@@ -157,9 +215,32 @@
 ;  a function.
 
 (define-transformer T:let let
-  [e e])
+  [`(let ([,id ,init])
+      ,body
+      ,body2 ...)
+   (println "1")
+   `(*app* 
+     (λ (,id) (block ,(list* body body2)))
+     ,init)]
+  [`(let ([,id ,init]
+          ,assignment ...)
+      ,body
+      ,body2 ...)
+   (println "2")
+   (println body)
+   (println body2)
+   (append
+    `(let ,assignment
+        (let ([,id ,init]) ,body))
+    body2)])
 
-
+(module+ test
+  (check-equal?
+     (expand '(let ([x 99]) (*datum* 100)) Ts)
+     '(L0: app (L0: λ (x) (L0: datum 100))  (L0: datum 99)))
+  (check-equal?
+     (expand '(let ([x 99] [y 488]) (*datum* 100)) Ts)
+     '(L0: app (L0: λ (y) (L0: app (L0: λ (x) (L0: datum 100)) (L0: datum 99))) (L0: datum 488))))
 ; local
 ; -----
 #;(local [(define (<f-id> (<id> ...))

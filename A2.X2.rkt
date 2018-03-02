@@ -382,7 +382,7 @@
    (closure 'ec) ; create closure_ec and put it into result
    (retq)))
 
-(define (call_ec)
+#;(define (call_ec)
     (labelled
      'call_ec
      (closure 'make_ec)
@@ -393,7 +393,7 @@
      (call)
      (retq)))
 
-#;(define (call_ec)
+(define (call_ec)
   (labelled
    'call_ec
    (variable 0)
@@ -458,149 +458,14 @@
 (define (movzbq from-1 from-2) (~a 'movzbq " " from-1 ", " from-2))
 
 ; Put X2 versions of make_less_than and less_than in RTL below.
-(define RTL (list #;(make_add)
-                  #;(add)
-                  #;(make_less_than)
-                  #;(less_than)
-                  #;(make_multiply)
-                  #;(multiply)
+(define RTL (list (make_add)
+                  (add)
+                  (make_less_than)
+                  (less_than)
+                  (make_multiply)
+                  (multiply)
                   (call_ec)
                   (make_ec)
                   (ec)))
 
-#;(module+ test
-    (check-equal? (L2→X2 (L1→L2 '(L1: app (L1: app (L1: var +) (L1: datum 1))
-                                      (L1: datum 2))))
-                  '(".globl  _main\n"
-                    "_make_add:\n"
-                    "movq _add@GOTPCREL(%rip), %rax\n"
-                    "movq %rax, 0(%r10)\n"
-                    "movq %r11, 8(%r10)\n"
-                    "movq %r10, %rcx\n"
-                    "addq $16, %r10\n"
-                    "retq\n"
-                    "_add:\n"
-                    "movq %r11, %rax\n"
-                    "movq 8(%rax), %rcx\n"
-                    "pushq %rcx\n"
-                    "movq %r11, %rax\n"
-                    "movq 0(%rax), %rax\n"
-                    "movq 8(%rax), %rcx\n"
-                    "popq %rax\n"
-                    "addq %rax, %rcx\n"
-                    "retq\n"
-                    "_make_less_than:\n"
-                    "movq _less_than@GOTPCREL(%rip), %rax\n"
-                    "movq %rax, 0(%r10)\n"
-                    "movq %r11, 8(%r10)\n"
-                    "movq %r10, %rcx\n"
-                    "addq $16, %r10\n"
-                    "retq\n"
-                    "_less_than:\n"
-                    "movq %r11, %rax\n"
-                    "movq 8(%rax), %rcx\n"
-                    "pushq %rcx\n"
-                    "movq %r11, %rax\n"
-                    "movq 0(%rax), %rax\n"
-                    "movq 8(%rax), %rcx\n"
-                    "popq %rax\n"
-                    "cmpq %rax, %rcx\n"
-                    "setb %cl\n"
-                    "movzbq %cl, %rcx\n"
-                    "retq\n"
-                    "_make_multiply:\n"
-                    "movq _multiply@GOTPCREL(%rip), %rax\n"
-                    "movq %rax, 0(%r10)\n"
-                    "movq %r11, 8(%r10)\n"
-                    "movq %r10, %rcx\n"
-                    "addq $16, %r10\n"
-                    "retq\n"
-                    "_multiply:\n"
-                    "movq %r11, %rax\n"
-                    "movq 8(%rax), %rcx\n"
-                    "pushq %rcx\n"
-                    "movq %r11, %rax\n"
-                    "movq 0(%rax), %rax\n"
-                    "movq 8(%rax), %rcx\n"
-                    "popq %rax\n"
-                    "imulq %rax, %rcx\n"
-                    "retq\n"
-                    "_call_ec:\n"
-                    "movq _make_ec@GOTPCREL(%rip), %rax\n"
-                    "movq %rax, 0(%r10)\n"
-                    "movq %r11, 8(%r10)\n"
-                    "movq %r10, %rcx\n"
-                    "addq $16, %r10\n"
-                    "pushq %rcx\n"
-                    "movq %rsp, %rcx\n"
-                    "popq %rax\n"
-                    "pushq %r11\n"
-                    "movq 8(%rax), %r11\n"
-                    "movq %r11, 0(%r10)\n"
-                    "movq %rcx, 8(%r10)\n"
-                    "movq %r10, %r11\n"
-                    "addq $16, %r10\n"
-                    "call *(%rax)\n"
-                    "popq %r11\n"
-                    "movq %rcx, %rax\n"
-                    "movq %r11, %rax\n"
-                    "movq 8(%rax), %rcx\n"
-                    "pushq %rcx\n"
-                    "movq %rax, %rcx\n"
-                    "popq %rax\n"
-                    "pushq %r11\n"
-                    "movq 8(%rax), %r11\n"
-                    "movq %r11, 0(%r10)\n"
-                    "movq %rcx, 8(%r10)\n"
-                    "movq %r10, %r11\n"
-                    "addq $16, %r10\n"
-                    "call *(%rax)\n"
-                    "popq %r11\n"
-                    "retq\n"
-                    "_make_ec:\n"
-                    "movq _ec@GOTPCREL(%rip), %rax\n"
-                    "movq %rax, 0(%r10)\n"
-                    "movq %r11, 8(%r10)\n"
-                    "movq %r10, %rcx\n"
-                    "addq $16, %r10\n"
-                    "retq\n"
-                    "_ec:\n"
-                    "movq %r11, %rax\n"
-                    "movq 0(%rax), %rax\n"
-                    "movq 8(%rax), %rcx\n"
-                    "movq %rcx, %rsp\n"
-                    "movq %r11, %rax\n"
-                    "movq 8(%rax), %rcx\n"
-                    "retq\n"
-                    "_main:\n"
-                    "movq _heap@GOTPCREL(%rip), %r10\n"
-                    "movq _make_add@GOTPCREL(%rip), %rax\n"
-                    "movq %rax, 0(%r10)\n"
-                    "movq %r11, 8(%r10)\n"
-                    "movq %r10, %rcx\n"
-                    "addq $16, %r10\n"
-                    "pushq %rcx\n"
-                    "movq $1, %rcx\n"
-                    "popq %rax\n"
-                    "pushq %r11\n"
-                    "movq 8(%rax), %r11\n"
-                    "movq %r11, 0(%r10)\n"
-                    "movq %rcx, 8(%r10)\n"
-                    "movq %r10, %r11\n"
-                    "addq $16, %r10\n"
-                    "call *(%rax)\n"
-                    "popq %r11\n"
-                    "pushq %rcx\n"
-                    "movq $2, %rcx\n"
-                    "popq %rax\n"
-                    "pushq %r11\n"
-                    "movq 8(%rax), %r11\n"
-                    "movq %r11, 0(%r10)\n"
-                    "movq %rcx, 8(%r10)\n"
-                    "movq %r10, %r11\n"
-                    "addq $16, %r10\n"
-                    "call *(%rax)\n"
-                    "popq %r11\n"
-                    "movq %rcx, %rax\n"
-                    "retq\n"
-                    ".comm  _heap,536870912,4\n")))
+
