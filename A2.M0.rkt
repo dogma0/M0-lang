@@ -185,8 +185,20 @@
 (define-transformer T:*app* *app*
   [`(*app* ,f ,a) `(L0: app ,f ,a)]
   [`(*app* ,f) `(L0: app ,f (block))]
-  [`(*app* ,f ,a ...) `(*app* (*app* ,f ,(first a)) ,(rest a))])
+  [`(*app* ,f ,a ...) (append `(*app* (*app* ,f ,(first a))) (rest a))])
 
+(module+ test
+  (check-equal? ((transformer-function T:*app*) '(*app* (λ (x) (*datum* 98)) (*datum* 99)))
+                '(L0: app (λ (x) (*datum* 98)) (*datum* 99)))
+  (check-equal? (expand '(*app* (λ (x y) (*datum* 98)) (*datum* 99)) Ts)
+                '(L0: app (L0: λ (x) (L0: λ (y) (L0: datum 98))) (L0: datum 99)))
+  (check-equal? ((transformer-function T:*app*) '(*app* (λ (x y) (*datum* 98)) (*datum* 99) (*datum* 100)))
+                '(*app* (*app* (λ (x y) (*datum* 98)) (*datum* 99)) (*datum* 100)))
+  (check-equal? (expand '(*app* (λ (x y) (*datum* 98)) (*datum* 99) (*datum* 100)) Ts)
+                '(L0: app (L0: app (L0: λ (x) (L0: λ (y) (L0: datum 98))) (L0: datum 99))
+                      (L0: datum 100)))
+  (check-equal? (expand '(*app* (λ (a) (*datum* 98)) (*datum* 99)) Ts)
+                  '(L0: app (L0: λ (a) (L0: datum 98)) (L0: datum 99))))
 
 ; block
 ; -----
@@ -209,12 +221,13 @@
   [`(block ,e ...) #:when (> (length e) 1) `(let ([_ ,(first e)]) ,(append '(block) (rest e)))]
   [`(block ,e) e])
 
+(module+ test
+  (check-equal? ((transformer-function T:block) '(block)) 0)
+  (check-equal? ((transformer-function T:block) '(block (*datum* 99)))
+                '(*datum* 99))
+  (check-equal? ((transformer-function T:block) '(block (*datum* 99) (*datum* 100)))
+                '(let ([_ (*datum* 99)]) (block (*datum* 100)))))
 #;(module+ test
-    (check-equal? ((transformer-function T:block) '(block (*datum* 98)))
-                  '(*datum* 98))
-    
-    (check-equal? (expand '(*app* (λ (a) (*datum* 98)) (*datum* 99)) (list T:block T:λ T:*app* T:*datum*))
-                  '(L0: app (L0: λ (a) (L0: datum 98)) (L0: datum 99)))
     (check-equal? (expand '(*app* (λ (a b) (λ () (*datum* 98))) (λ (c d) (*datum* 99)))
                           (list T:block T:*app* T:λ T:*datum*))
                   '(L0: app (L0: λ (a) (L0: λ (b) (L0: λ (_) (L0: datum 98))))
