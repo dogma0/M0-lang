@@ -133,6 +133,12 @@
                                (*app* (λ () ,e1))
                                ,(append '(>> ) e2)))
                      ))
+#;(define-transformer T:>>= >>=
+    (`(>> ,e1) `(*app* (λ () ,e1)))
+    (`(>> ,e1 ,e2 ...) `(*app* (λ ()
+                                 (*app* (λ () ,e1))
+                                 ,(append '(>> ) e2)))
+                       ))
 
 ; λ
 ; -
@@ -163,8 +169,8 @@
                 '(λ (_) (*datum* 98)))
   (check-equal? (expand '(λ () (*datum* 98)) Ts)
                 '(L0: λ (_) (L0: datum 98)))
-  #;(check-equal? (expand '(λ () (*datum* 98) (*datum* 99)) Ts)
-                  '(L0: λ (_) (L0: datum 98)))
+  (check-equal? (expand '(λ () (*datum* 98) (*datum* 99)) Ts)
+                '(L0: λ (_) (L0: app (L0: λ (_) (L0: datum 99)) (L0: datum 98))))
   (check-equal? ((transformer-function T:λ) '(λ (a b c) (*datum* 99)))
                 '(λ (a)
                    (λ (b c)
@@ -197,8 +203,23 @@
   (check-equal? (expand '(*app* (λ (x y) (*datum* 98)) (*datum* 99) (*datum* 100)) Ts)
                 '(L0: app (L0: app (L0: λ (x) (L0: λ (y) (L0: datum 98))) (L0: datum 99))
                       (L0: datum 100)))
+  (check-equal? (expand '(*app* (λ (x y) (*datum* 0) (*datum* 1)) (*datum* 99) (*datum* 100)) Ts)
+                '(L0: app
+                      (L0: app
+                           (L0: λ (x)
+                                (L0: λ (y)
+                                     (L0: app
+                                          (L0: λ (_) (L0: datum 1))
+                                          (L0: datum 0))))
+                           (L0: datum 99))
+                      (L0: datum 100)))
   (check-equal? (expand '(*app* (λ (a) (*datum* 98)) (*datum* 99)) Ts)
-                  '(L0: app (L0: λ (a) (L0: datum 98)) (L0: datum 99))))
+                '(L0: app (L0: λ (a) (L0: datum 98)) (L0: datum 99)))
+  (check-equal? (expand '(*app* (λ (a b) (λ () (*datum* 98))) (λ (c d) (*datum* 99))) Ts)
+                '(L0: app (L0: λ (a) (L0: λ (b) (L0: λ (_) (L0: datum 98))))
+                      (L0: λ (c) (L0: λ (d) (L0: datum 99)))))
+  (check-equal? (expand '(*app* (λ (x) (block (*datum* 3))) 100) Ts)
+                '(L0: app (L0: λ (x) (L0: datum 3)) (L0: datum 100))))
 
 ; block
 ; -----
@@ -227,30 +248,21 @@
                 '(*datum* 99))
   (check-equal? ((transformer-function T:block) '(block (*datum* 99) (*datum* 100)))
                 '(let ([_ (*datum* 99)]) (block (*datum* 100)))))
-#;(module+ test
-    (check-equal? (expand '(*app* (λ (a b) (λ () (*datum* 98))) (λ (c d) (*datum* 99)))
-                          (list T:block T:*app* T:λ T:*datum*))
-                  '(L0: app (L0: λ (a) (L0: λ (b) (L0: λ (_) (L0: datum 98))))
-                        (L0: λ (c) (L0: λ (d) (L0: datum 99)))))
-    (check-equal? ((transformer-function T:block)
-                   '(block (*datum* 99)
-                           (*datum* 100)))
-                  '(let ([_ (*datum* 99)])
-                     (block (*datum* 100))))
-    (check-equal? (expand '(*app* (λ (x) (block (*datum* 3))) 100) Ts)
-                  '(L0: app (L0: λ (x) (L0: datum 3)) (L0: datum 100)))
-    (check-equal? ((transformer-function T:block) `(block)) 0)
-    (check-equal? (expand '(>> (*datum* 1) (*datum* 2)) Ts)
-                  '(L0:
-                    app
-                    (L0:
-                     λ
-                     (_)
-                     (L0:
-                      app
-                      (L0: λ (_) (L0: app (L0: λ (_) (L0: datum 2)) (L0: datum 0)))
-                      (L0: app (L0: λ (_) (L0: datum 1)) (L0: datum 0))))
-                    (L0: datum 0))))
+
+(module+ test
+  (check-equal? ((transformer-function T:block)
+                 '(block (*datum* 99)
+                         (*datum* 100)))
+                '(let ([_ (*datum* 99)])
+                   (block (*datum* 100))))
+  (check-equal? ((transformer-function T:block) `(block)) 0)
+  (check-equal? (expand '(>> (*datum* 1) (*datum* 2)) Ts)
+                '(L0: app
+                      (L0: λ (_)
+                           (L0: app
+                                (L0: λ (_) (L0: app (L0: λ (_) (L0: datum 2)) (L0: datum 0)))
+                                (L0: app (L0: λ (_) (L0: datum 1)) (L0: datum 0))))
+                      (L0: datum 0))))
 
 ; let
 ; ---
@@ -268,25 +280,35 @@
   [`(let ([,id ,init])
       ,body
       ,body2 ...)
-   (append
-    `(*app* 
-      (λ (,id) (block ,body))) body2 (list init))]
+   `(*app* ,(append `(λ (,id) ,body) body2) ,init)]
   [`(let ([,id ,init]
           ,assignment ...)
       ,body
       ,body2 ...)
-   (append
-    `(let ,assignment
-       (let ([,id ,init]) ,body))
-    body2)])
+   `(let ,assignment
+      ,(append `(let ([,id ,init]) ,body) body2))])
 
-#;(module+ test
-    (check-equal?
-     (expand '(let ([x 99]) (*datum* 100)) Ts)
-     '(L0: app (L0: λ (x) (L0: datum 100)) (L0: datum 99)))
-    (check-equal?
-     (expand '(let ([x 99] [y 488]) (*datum* 100)) Ts)
-     '(L0: app (L0: λ (y) (L0: app (L0: λ (x) (L0: datum 100)) (L0: datum 99))) (L0: datum 488))))
+(module+ test
+  (check-equal? ((transformer-function T:let) '(let ([x (*datum* 100)]) (*datum* 101)))
+                '(*app* (λ (x) (*datum* 101)) (*datum* 100)))
+  (check-equal?
+   (expand '(let ([x 99]) (*datum* 100)) Ts)
+   '(L0: app (L0: λ (x) (L0: datum 100)) (L0: datum 99)))
+  (check-equal?
+   (expand '(let ([x 99] [y 488]) (*datum* 100)) Ts)
+   '(L0: app (L0: λ (y) (L0: app (L0: λ (x) (L0: datum 100)) (L0: datum 99))) (L0: datum 488)))
+  (check-equal?
+   (expand '(let ([x 99] [y 488]) (*app* (λ (x y) (*datum* 0) (*datum* 1)) (*datum* 99) (*datum* 100))) Ts)
+   '(L0: app (L0: λ (y) (L0: app (L0: λ (x) (L0: app
+                                                 (L0: app
+                                                      (L0: λ (x)
+                                                           (L0: λ (y)
+                                                                (L0: app
+                                                                     (L0: λ (_) (L0: datum 1))
+                                                                     (L0: datum 0))))
+                                                      (L0: datum 99))
+                                                 (L0: datum 100))
+                                      ) (L0: datum 99))) (L0: datum 488))))
 
 ; local
 ; -----
@@ -303,7 +325,55 @@
 ;  all the <f-id>s to dummy values, sets them to their functions, then evaluates the body.
 
 (define-transformer T:local local
-  [e e])
+  [`(local [(define (,f-id (,id ...))
+              ,f-body
+              ,f-body-2
+              ...)]
+      ,body
+      ,body2
+      ...)
+   (append
+    `(let ([,f-id ,(append `(λ ,id ,f-body) f-body-2)]) ,body)
+    body2)]
+  [`(local [(define (,f-id (,id ...))
+              ,f-body
+              ,f-body-2
+              ...)
+            ,define2 ...]
+      ,body
+      ,body2
+      ...)
+   (append
+    `(let ([,f-id ,(append `(λ ,id ,f-body) f-body-2)])
+       ,(append `(local ,define2 ,body) body2)))])
+
+(module+ test
+  (check-equal? ((transformer-function T:local) '(local [(define (f (a b)) (*datum* 99))] (*datum* 100)))
+                '(let ([f (λ (a b) (*datum* 99))]) (*datum* 100)))
+  (check-equal? (expand '(local [(define (f (a b)) (*app* b (*app* a (*datum* 99))))]
+                           (*app* f (*datum* 100)))
+                        Ts)
+                '(L0:
+                  app
+                  (L0: λ (f) (L0: app (L0: var f) (L0: datum 100)))
+                  (L0: λ (a) (L0: λ (b) (L0: app (L0: var b) (L0: app (L0: var a) (L0: datum 99)))))))
+  (check-equal? ((transformer-function T:local) '(local [(define (f (a b)) (*datum* 99))
+                                                         (define (g (c d)) (*datum* 101))] (*datum* 100)))
+                '(let ([f (λ (a b) (*datum* 99))])
+                   (local [(define (g (c d)) (*datum* 101))]
+                     (*datum* 100))))
+  
+  (check-equal? (expand '(local [(define (f (a b)) (*app* b (*app* a (*datum* 99))))
+                                 (define (g (c d)) (*app* d (*app* c (*datum* 101))))]
+                           (*app* g (*datum* 100)))
+                        Ts)
+                '(L0:
+                  app
+                  (L0: λ (f) (L0:
+                              app
+                              (L0: λ (g) (L0: app (L0: var g) (L0: datum 100)))
+                              (L0: λ (c) (L0: λ (d) (L0: app (L0: var d) (L0: app (L0: var c) (L0: datum 101)))))))
+                  (L0: λ (a) (L0: λ (b) (L0: app (L0: var b) (L0: app (L0: var a) (L0: datum 99))))))))
 
 
 ; and or
