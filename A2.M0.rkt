@@ -90,6 +90,8 @@
 ; Transform those directly to their L0 form.
 
 (define-transformer T:*id* *id*
+  [`(*id* false) `(L0: datum 0)]
+  [`(*id* true)  `(L0: datum 1)]
   [`(*id* ,name) `(L0: var ,name)])
 
 (module+ test
@@ -384,9 +386,36 @@
 ; Transform to ‘if’s or ‘cond’s.
 
 (define-transformer T:and and
-  [e e])
+  [`(and ,e1 ,e2) `(L0: if ,e1
+                        (if ,e2
+                            (*id* true)
+                            (*id* false))
+                        (*id* false))]
+  [`(and ,e1 ,e2 ...)
+   `(L0: if ,e1
+         ,(append `(and) e2)
+         (*id* false))])
+
 (define-transformer T:or or
-  [e e])
+  [`(or ,e1 ,e2) `(L0: if ,e1
+                       (*id* true)
+                       (if ,e2
+                           (*id* true)
+                           (*id* false)))]
+  [`(or ,e1 ,e2 ...)
+   `(L0: if ,e1
+         (*id* true)
+         ,(append `(or) e2))])
+
+(module+ test
+  (check-equal? ((transformer-function T:and) '(and 1 0 1))
+                `(L0: if 1
+                      (and 0 1)
+                      (*id* false)))
+  (check-equal? ((transformer-function T:or) '(or 1 0 1))
+                `(L0: if 1
+                      (*id* true)
+                      (or 0 1))))
 
 
 ; cond
