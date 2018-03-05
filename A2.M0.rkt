@@ -596,22 +596,25 @@
 ; ----------------
 ; Add definitions for the functions described by the comments in the body.
 (define (standard-library e)
-  `(local [
+  #;`(local [
            ; Boolean logic
            ; -------------
            ; (not b) : the negation of b, implemented with ‘if’
-           #;(define (not (b)) (if b 0 1))
+           (define (not (b)) (if b 0 1)) ; Added to testsuite
            ; Arithmetic
            ; ----------
-           ; (- a b) : the difference between a and b
-           #;(define (- (a b)) (+ a (⊖ b)))
            ; (⊖ a) : the negative of a
-           (define (⊖ (a)) (*datum* a))
-           ; (> a b) : whether a is greater than b
-           #;(define (> (a b)) (if (and (not (< a b)) (not (= a b))) 1 0))
-           ; (>= a b) : whether a is greater than or equal to b
-           #;(define (>= (a b)) (if (not (< a b)) 1 0))
+           (define (⊖ (a)) (* (*datum* -1) a)) ; Added to testsuite
+           ; (- a b) : the difference between a and b
+           (define (- (a b)) (+ a (⊖ b))) ; Added to testsuite
            ; (= a b) : whether a is equal to b
-           #;(define (= (a b)) (if (and (not (< a b)) (not (> a b))) 1 0))
+           #;(define (= (a b)) (if (and (not (< a b)) (not (< (- b a) 0))) 1 0))
+           ; (not (< (- 5 1) 0)) :== (not (< 252 0)) because $-2 wraps around in x86. TODO: How to represent negative integers in x86?
+           (define (= (a b)) (if (and (not (< a b)) (not (< (⊖ a) (⊖ b)))) 1 0)) ; Added to testsuite
+           ; (> a b) : whether a is greater than b
+           (define (> (a b)) (if (and (not (< a b)) (not (= a b))) 1 0)) ; Added to testsuite
+           ; (>= a b) : whether a is greater than or equal to b
+           (define (>= (a b)) (if (not (< a b)) 1 0)) ; Added to testsuite
            ]
-     ,e))
+     ,e)
+  e)

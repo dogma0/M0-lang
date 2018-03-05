@@ -471,4 +471,34 @@
                   (make_ec)
                   (ec)))
 
+#;(module+ test
+  (check-equal?
+   (L1→L2 (L0→L1 (M0→L0
+                  '(not 0))))
+   (compiled:L2
+    '((L2: closure lambda_0) (L2: push_result) (L2: closure lambda_1) (L2: call))
+    '((lambda_0 ((L2: variable 0) (L2: push_result) (L2: set_result 0) (L2: call)))
+      (lambda_1
+       ((L2: variable 0)
+        (L2: jump_false else_0)
+        (L2: set_result 0)
+        (L2: jump end_0)
+        (L2: label else_0)
+        (L2: set_result 1)
+        (L2: label end_0))))))
+  (check-equal?
+   (L1→L2 (L0→L1 (M0→L0
+                  '(not 5))))
+   (compiled:L2
+    '((L2: closure lambda_0) (L2: push_result) (L2: closure lambda_1) (L2: call))
+    '((lambda_0 ((L2: variable 0) (L2: push_result) (L2: set_result 5) (L2: call)))
+      (lambda_1
+       ((L2: variable 0)
+        (L2: jump_false else_0)
+        (L2: set_result 0)
+        (L2: jump end_0)
+        (L2: label else_0)
+        (L2: set_result 1)
+        (L2: label end_0)))))))
+
 
