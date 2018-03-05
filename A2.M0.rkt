@@ -258,13 +258,13 @@
                 '(let ([_ (*datum* 99)])
                    (block (*datum* 100))))
   (check-equal? ((transformer-function T:block) `(block)) 0)
-  (check-equal? (expand '(>> (*datum* 1) (*datum* 2)) Ts)
-                '(L0: app
-                      (L0: λ (_)
-                           (L0: app
-                                (L0: λ (_) (L0: app (L0: λ (_) (L0: datum 2)) (L0: datum 0)))
-                                (L0: app (L0: λ (_) (L0: datum 1)) (L0: datum 0))))
-                      (L0: datum 0))))
+  #;(check-equal? (expand '(>> (*datum* 1) (*datum* 2)) Ts)
+                  '(L0: app
+                        (L0: λ (_)
+                             (L0: app
+                                  (L0: λ (_) (L0: app (L0: λ (_) (L0: datum 2)) (L0: datum 0)))
+                                  (L0: app (L0: λ (_) (L0: datum 1)) (L0: datum 0))))
+                        (L0: datum 0))))
 
 ; let
 ; ---
@@ -433,10 +433,30 @@
 ;
 ; Transform using ‘if’s, ‘when’s, and/or ‘block’s.
 
+
+
 (define-transformer T:cond cond
-  [e e])
+  [`(cond [,cond ,res ...])
+   (append `(when ,cond)
+           res)] 
+  [`(cond [,cond ,res ...]
+          ,conds ...)
+   `(L0: if ,cond
+         ,(append '(block) res)
+         ,(append '(cond) conds))])
 
-
+(module+ test
+  (check-equal? ((transformer-function T:cond) '(cond [(*datum* 0) (*datum 99)]))
+                '(when (*datum* 0)
+                   (*datum 99)))
+  (check-equal? ((transformer-function T:cond)
+                 '(cond [(*datum* 0) (*datum* 99)]
+                        [(*datum* 1) (*datum* 100)]
+                        [(*datum* 2) (*datum* 102)]))
+                '(L0: if (*datum* 0)
+                      (block (*datum* 99))
+                      (cond [(*datum* 1) (*datum* 100)]
+                            [(*datum* 2) (*datum* 102)]))))
 ; when
 ; ----
 #;(when <condition>
@@ -445,8 +465,34 @@
 ; If boolean <condition> is true evaluates the <body>s as a block, otherwise produces a dummy value.
 
 (define-transformer T:when when
-  [e e])
-
+  [`(when ,<condition>
+      ,<body>
+      ...)
+   (append `(L0: if ,<condition>)
+           (list (append '(block) <body>))
+           `((block)))])
+(module+ test
+  (check-equal? ((transformer-function T:when) '(when (*datum* 0) (*datum* 99) (*datum* 100)))
+                '(L0: if (*datum* 0)
+                      (block (*datum* 99)
+                             (*datum* 100))
+                      (block))))
+(module+ test
+  (check-equal? (expand '(*app*
+                          (λ () (cond [(and (*id* true) (*id* true)) (*datum* 42)])))
+                        Ts)
+                '(L0: app
+                      (L0: λ (_) 
+                           (L0: if
+                                ; and
+                                (L0: if (L0: datum 1)
+                                     (L0: if (L0: datum 1)
+                                          (L0: datum 1)
+                                          (L0: datum 0))
+                                     (L0: datum 0))
+                                (L0: datum 42)
+                                (L0: datum 0)))
+                      (L0: datum 0))))
 
 ; while
 ; -----
@@ -457,7 +503,32 @@
 ; Transform to a recursive no-argument function that is immediately called.
 
 (define-transformer T:while while
-  [e e])
+  [`(while ,<condition>
+           ,<body>
+           ,<body2>
+           ...)
+   `(local ([(define (f (_))
+               (L0: if ,<condition>
+                    (block)
+                    ,(append `(block
+                               ,<body>
+                               )
+                             <body2>
+                             '((*app* (*id* f))))))])
+      (*app* (*id* f)))])
+
+(module+ test
+  (check-equal? ((transformer-function T:while)
+                 '(while (*id* true)
+                         (*datum* 99)
+                         (*datum* 100)))
+                '(local ([(define (f (_)) (L0: if (*id* true)
+                                               (block)
+                                               (block
+                                                (*datum* 99)
+                                                (*datum* 100)
+                                                (*app* (*id* f)))))])
+                   (*app* (*id* f)))))
 
 
 ; returnable breakable continuable
@@ -474,11 +545,40 @@
 ;  to return early, break, or continue.
 
 (define-transformer T:returnable returnable
-  [e e])
+  [`(returnable ,e
+                ...)
+   (append `(let ([define return (*id* call/ec)])
+              )
+           e)])
+
+(module+ test
+  (check-equal? ((transformer-function T:returnable) '(returnable (*app* (*id* return) (*datum* 42))))
+                '(let ((define return (*id* call/ec)))
+                   (*app* (*id* return) (*datum* 42 )))))
+
 (define-transformer T:breakable breakable
-  [e e])
+  [`(breakable ,e
+               ...)
+   (append `(let ([define break (*id* call/ec)])
+              )
+           e)])
+
+(module+ test
+  (check-equal? ((transformer-function T:breakable) '(breakable (*app* (*id* break) (*datum* 42))))
+                '(let ((define break (*id* call/ec)))
+                   (*app* (*id* break) (*datum* 42 )))))
+
 (define-transformer T:continuable continuable
-  [e e])
+  [`(continuable ,e
+                 ...)
+   (append `(let ([define continue (*id* call/ec)])
+              )
+           e)])
+
+(module+ test
+  (check-equal? ((transformer-function T:continuable) '(continuable (*app* (*id* continue) (*datum* 42))))
+                '(let ((define continue (*id* call/ec)))
+                   (*app* (*id* continue) (*datum* 42)))))
 
 
 ; List of all the transformations.
@@ -490,7 +590,7 @@
                  T:cond T:when T:while
                  T:breakable T:continuable T:returnable
                  T:and T:or
-                 T:>>))
+                 #;T:>>))
 
 ; Standard Library
 ; ----------------
@@ -500,14 +600,18 @@
            ; Boolean logic
            ; -------------
            ; (not b) : the negation of b, implemented with ‘if’
-           
+           #;(define (not (b)) (if b 0 1))
            ; Arithmetic
            ; ----------
            ; (- a b) : the difference between a and b
-           (define (- a b) (+ a (⊖ b)))
+           #;(define (- (a b)) (+ a (⊖ b)))
            ; (⊖ a) : the negative of a
+           (define (⊖ (a)) (*datum* a))
            ; (> a b) : whether a is greater than b
+           #;(define (> (a b)) (if (and (not (< a b)) (not (= a b))) 1 0))
            ; (>= a b) : whether a is greater than or equal to b
+           #;(define (>= (a b)) (if (not (< a b)) 1 0))
            ; (= a b) : whether a is equal to b
+           #;(define (= (a b)) (if (and (not (< a b)) (not (> a b))) 1 0))
            ]
      ,e))

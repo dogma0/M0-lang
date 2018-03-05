@@ -112,7 +112,15 @@
  For an L0 expression: debruijnizes, indexes, and replaces remaining ‘L0:’ tags with ‘L1:’. |#
 
 (define (L0→L1 e)
-  (index (debruijn e)))
+  (define (L0→L1′ e)
+    (match e
+      [`(L1: λ ,n ,e_pri) `(L1: λ ,n ,(L0→L1 e_pri))]
+      [`(L1: app ,e1 ,e2) `(L1: app ,(L0→L1 e1) ,(L0→L1 e2))]
+      [`(L1: set! ,id ,e_pri) `(L1: set! ,id ,(L0→L1 e_pri))]
+      [`(L1: if ,n ,e1 ,e2 ,e3) `(L1: if ,n ,(L0→L1 e1) ,(L0→L1 e2) ,(L0→L1 e3))]
+      [`(L1: var ,id) e]
+      [`(L0: datum ,i) `(L1: datum ,i)]))
+  (L0→L1′ (index (debruijn e))))
 
 (module+ test
   (check-equal? (L0→L1 '(L0: λ (x) (L0: var y)))

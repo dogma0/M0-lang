@@ -4,6 +4,9 @@
          Mac? heap-size postamble)
 
 (require "A2.L2.rkt")
+(require "A2.L1.rkt")
+(require "A2.L0.rkt")
+(require "A2.M0.rkt")
 
 (module+ test (require rackunit))
 

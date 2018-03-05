@@ -63,7 +63,6 @@
   (local [(define (expand e)
             (println e)
             (match e
-              
               ; Head identifier determines meaning: pre-order traversal.
               ; New forms.
               [`(,head . ,_) #:when (dict-has-key? env′ head)
@@ -86,5 +85,4 @@
               ; Wrap identifier access and integer literals.
               [id #:when (symbol? id) (expand `(*id* ,id))]
               [integer (expand `(*datum* ,integer))]))]
-    
     (expand e)))
