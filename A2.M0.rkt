@@ -596,7 +596,7 @@
 ; ----------------
 ; Add definitions for the functions described by the comments in the body.
 (define (standard-library e)
-  #;`(local [
+  `(local [
            ; Boolean logic
            ; -------------
            ; (not b) : the negation of b, implemented with ‘if’
@@ -616,5 +616,4 @@
            ; (>= a b) : whether a is greater than or equal to b
            (define (>= (a b)) (if (not (< a b)) 1 0)) ; Added to testsuite
            ]
-     ,e)
-  e)
+     ,e))
