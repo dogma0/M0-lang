@@ -61,7 +61,7 @@
   (define env′ (for/hash ([t env]) (values (transformer-name t) (transformer-function t))))
 
   (local [(define (expand e)
-            (println e)
+            #;(println e)
             (match e
               ; Head identifier determines meaning: pre-order traversal.
               ; New forms.
