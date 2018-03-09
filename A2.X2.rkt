@@ -501,4 +501,36 @@
           (L2: set_result 1)
           (L2: label end_0)))))))
 
+; Passed
+; Cond without else
+(define simple-cond-testcase '((λ (x)
+                                 (cond [(= x 34) 100]
+                                       [(= x 43) 101]))
+                               (- 45 2)))
+; Passed
+; let with 2 inits
+(define simple-let-testcase '(let ([x 100] [y 130])
+                               (+ x y)))
+
+; Passesd
+; let with 2 inits and a curried function call
+(define simple-let-testcase2 '(let ([x 99] [y 488]) ((λ (x y) 0 1) 99 100)))
+; Passed
+(define simple-let-testcase3 '(let ([x 99] [y 488]) ((λ (x y) 0 y) 99 100)))
+
+(define fib-testcase '(local [(define (fib (n))
+                                (cond [(= n 1) 1]
+                                      [(= n 2) 1]
+                                      [1 (+ (fib (- n 1))
+                                            (fib (- n 2)))]))]
+                        (fib 13)))
+
+
+
+(define out (open-output-file "file.s" 	#:exists 'replace))
+(define assembly (L2→X2 (L1→L2 (L0→L1 (M0→L0 simple-let-testcase3)))))
+(map (λ (x) (display x out)) assembly)
+(close-output-port out)
+
+
 

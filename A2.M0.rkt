@@ -279,38 +279,28 @@
 ;  a function.
 
 (define-transformer T:let let
-  [`(let ([,id ,init])
-      ,body
-      ,body2 ...)
-   `(*app* ,(append `(λ (,id) ,body) body2) ,init)]
   [`(let ([,id ,init]
-          ,assignment ...)
+          ..1)
       ,body
-      ,body2 ...)
-   `(let ,assignment
-      ,(append `(let ([,id ,init]) ,body) body2))])
+      ..1)
+   `((λ ,id . ,body) . ,init)])
 
 (module+ test
-  (check-equal? ((transformer-function T:let) '(let ([x (*datum* 100)]) (*datum* 101)))
-                '(*app* (λ (x) (*datum* 101)) (*datum* 100)))
   (check-equal?
-   (expand '(let ([x 99]) (*datum* 100)) Ts)
+   (expand '(let ([x 99]) 100) Ts)
    '(L0: app (L0: λ (x) (L0: datum 100)) (L0: datum 99)))
   (check-equal?
-   (expand '(let ([x 99] [y 488]) (*datum* 100)) Ts)
-   '(L0: app (L0: λ (y) (L0: app (L0: λ (x) (L0: datum 100)) (L0: datum 99))) (L0: datum 488)))
+   (expand '(let ([x 99] [y 488]) 100) Ts)
+   '(L0:
+     app
+     (L0: app (L0: λ (x) (L0: λ (y) (L0: datum 100))) (L0: datum 99))
+     (L0: datum 488)))
   (check-equal?
-   (expand '(let ([x 99] [y 488]) (*app* (λ (x y) (*datum* 0) (*datum* 1)) (*datum* 99) (*datum* 100))) Ts)
-   '(L0: app (L0: λ (y) (L0: app (L0: λ (x) (L0: app
-                                                 (L0: app
-                                                      (L0: λ (x)
-                                                           (L0: λ (y)
-                                                                (L0: app
-                                                                     (L0: λ (_) (L0: datum 1))
-                                                                     (L0: datum 0))))
-                                                      (L0: datum 99))
-                                                 (L0: datum 100))
-                                      ) (L0: datum 99))) (L0: datum 488))))
+   (expand '(let ([x 99] [y 488]) ((λ (x y) 0 1) 99 100)) Ts)
+   '(L0:
+     app
+     (L0: app (L0: λ (x) (L0: λ (y) (L0: app (L0: app (L0: λ (x) (L0: λ (y) (L0: app (L0: λ (_) (L0: datum 1)) (L0: datum 0)))) (L0: datum 99)) (L0: datum 100)))) (L0: datum 99))
+     (L0: datum 488))))
 
 ; local
 ; -----
