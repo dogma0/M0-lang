@@ -314,7 +314,7 @@
 
 ; local
 ; -----
-#;(local [(define (<f-id> (<id> ...))
+#;(local [(define (<f-id> <id> ...)
             <f-body>
             ...+)
           ...+]
@@ -327,7 +327,7 @@
 ;  all the <f-id>s to dummy values, sets them to their functions, then evaluates the body.
 
 (define-transformer T:local local
-  [`(local [(define (,f-id (,id ...))
+  [`(local [(define (,f-id ,id ...)
               ,f-body
               ,f-body-2
               ...)]
@@ -337,7 +337,7 @@
    (append
     `(let ([,f-id ,(append `(λ ,id ,f-body) f-body-2)]) ,body)
     body2)]
-  [`(local [(define (,f-id (,id ...))
+  [`(local [(define (,f-id ,id ...)
               ,f-body
               ,f-body-2
               ...)
@@ -350,23 +350,23 @@
        ,(append `(local ,define2 ,body) body2)))])
 
 (module+ test
-  (check-equal? ((transformer-function T:local) '(local [(define (f (a b)) (*datum* 99))] (*datum* 100)))
+  (check-equal? ((transformer-function T:local) '(local [(define (f a b) (*datum* 99))] (*datum* 100)))
                 '(let ([f (λ (a b) (*datum* 99))]) (*datum* 100)))
-  (check-equal? (expand '(local [(define (f (a b)) (*app* b (*app* a (*datum* 99))))]
+  (check-equal? (expand '(local [(define (f a b) (*app* b (*app* a (*datum* 99))))]
                            (*app* f (*datum* 100)))
                         Ts)
                 '(L0:
                   app
                   (L0: λ (f) (L0: app (L0: var f) (L0: datum 100)))
                   (L0: λ (a) (L0: λ (b) (L0: app (L0: var b) (L0: app (L0: var a) (L0: datum 99)))))))
-  (check-equal? ((transformer-function T:local) '(local [(define (f (a b)) (*datum* 99))
-                                                         (define (g (c d)) (*datum* 101))] (*datum* 100)))
+  (check-equal? ((transformer-function T:local) '(local [(define (f a b) (*datum* 99))
+                                                         (define (g c d) (*datum* 101))] (*datum* 100)))
                 '(let ([f (λ (a b) (*datum* 99))])
-                   (local [(define (g (c d)) (*datum* 101))]
+                   (local [(define (g c d) (*datum* 101))]
                      (*datum* 100))))
   
-  (check-equal? (expand '(local [(define (f (a b)) (*app* b (*app* a (*datum* 99))))
-                                 (define (g (c d)) (*app* d (*app* c (*datum* 101))))]
+  (check-equal? (expand '(local [(define (f a b) (*app* b (*app* a (*datum* 99))))
+                                 (define (g c d) (*app* d (*app* c (*datum* 101))))]
                            (*app* g (*datum* 100)))
                         Ts)
                 '(L0:
@@ -604,16 +604,16 @@
            ; Arithmetic
            ; ----------
            ; (⊖ a) : the negative of a
-           (define (⊖ (a)) (* (*datum* -1) a)) ; Added to testsuite
+           (define (⊖ a) (* -1 a)) ; Added to testsuite
            ; (- a b) : the difference between a and b
-           (define (- (a b)) (+ a (⊖ b))) ; Added to testsuite
+           (define (- a b) (+ a (⊖ b))) ; Added to testsuite
            ; (= a b) : whether a is equal to b
-           #;(define (= (a b)) (if (and (not (< a b)) (not (< (- b a) 0))) 1 0))
+           #;(define (= a b) (if (and (not (< a b)) (not (< (- b a) 0))) 1 0))
            ; (not (< (- 5 1) 0)) :== (not (< 252 0)) because $-2 wraps around in x86. TODO: How to represent negative integers in x86?
-           (define (= (a b)) (if (and (not (< a b)) (not (< (⊖ a) (⊖ b)))) 1 0)) ; Added to testsuite
+           (define (= a b) (if (and (not (< a b)) (not (< (⊖ a) (⊖ b)))) 1 0)) ; Added to testsuite
            ; (> a b) : whether a is greater than b
-           (define (> (a b)) (if (and (not (< a b)) (not (= a b))) 1 0)) ; Added to testsuite
+           (define (> a b) (if (and (not (< a b)) (not (= a b))) 1 0)) ; Added to testsuite
            ; (>= a b) : whether a is greater than or equal to b
-           (define (>= (a b)) (if (not (< a b)) 1 0)) ; Added to testsuite
+           (define (>= a b) (if (not (< a b)) 1 0)) ; Added to testsuite
            ]
      ,e))
