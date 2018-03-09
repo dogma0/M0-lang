@@ -518,19 +518,49 @@
 ; Passed
 (define simple-let-testcase3 '(let ([x 99] [y 488]) ((λ (x y) 0 y) 99 100)))
 
+; local
+; local w/ 1 init and 1 body
+(define local-testcase0 '(local [(define (f a)
+                                   100)]
+                           (f 0)))
+(define local-testcase1 '(local [(define (f a)
+                                   (< 1 101))]
+                           (f 0)))
+(define local-testcase2 '(local [(define (f a)
+                                   (+ 1 101))]
+                           (f 0)))
+(define local-testcase3 '(local [(define (f a)
+                                   (not 1))]
+                           (f 0)))
+(define local-testcase4 '(local [(define (f a)
+                                   (⊖ 1))]
+                           (f 0)))
+(define local-testcase5 '(local [(define (f a)
+                                   (- 0 2))]
+                           (f 0)))
+
+(define local-testcase6 '(local [(define (f a)
+                                   (= 2 2))]
+                           (f 0)))
+
+(define local-testcase7 '(local [(define (f a)
+                                   (and (>= 2 2) (> 2 1)))]
+                           (f 0)))
+
 (define fib-testcase '(local [(define (fib (n))
                                 (cond [(= n 1) 1]
                                       [(= n 2) 1]
-                                      [1 (+ (fib (- n 1))
-                                            (fib (- n 2)))]))]
+                                      [else (+ (fib (- n 1))
+                                               (fib (- n 2)))]))]
                         (fib 13)))
 
 
 
-(define out (open-output-file "file.s" 	#:exists 'replace))
-(define assembly (L2→X2 (L1→L2 (L0→L1 (M0→L0 simple-let-testcase3)))))
+
+#;{(define out (open-output-file "file.s" 	#:exists 'replace))
+(define assembly (L2→X2 (L1→L2 (L0→L1 (M0→L0 fib-testcase)))))
 (map (λ (x) (display x out)) assembly)
-(close-output-port out)
+(close-output-port out)};#
 
 
 

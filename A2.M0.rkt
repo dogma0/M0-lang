@@ -129,12 +129,12 @@
    '(L0: set! x (L0: datum 99))))
 
 ; For fun
-(define-transformer T:>> >>
-  (`(>> ,e1) `(*app* (λ () ,e1)))
-  (`(>> ,e1 ,e2 ...) `(*app* (λ ()
-                               (*app* (λ () ,e1))
-                               ,(append '(>> ) e2)))
-                     ))
+#;(define-transformer T:>> >>
+    (`(>> ,e1) `(*app* (λ () ,e1)))
+    (`(>> ,e1 ,e2 ...) `(*app* (λ ()
+                                 (*app* (λ () ,e1))
+                                 ,(append '(>> ) e2)))
+                       ))
 #;(define-transformer T:>>= >>=
     (`(>> ,e1) `(*app* (λ () ,e1)))
     (`(>> ,e1 ,e2 ...) `(*app* (λ ()
@@ -241,7 +241,7 @@
 
 (define-transformer T:block block
   [`(block ,e ...) #:when (empty? e) 0]
-  [`(block ,e ...) #:when (> (length e) 1) `(let ([_ ,(first e)]) ,(append '(block) (rest e)))]
+  [`(block ,e ...) #:when (> (length e) 1 ) `(let ([_ ,(first e)]) ,(append '(block) (rest e)))]
   [`(block ,e) e])
 
 (module+ test
@@ -317,55 +317,47 @@
 ;  all the <f-id>s to dummy values, sets them to their functions, then evaluates the body.
 
 (define-transformer T:local local
-  [`(local [(define (,f-id (,id ...))
-              ,f-body
-              ,f-body-2
-              ...)]
+  [`(local [(define (,f-id ,id ..1)
+              ,f-body ..1)
+            ..1]
       ,body
-      ,body2
-      ...)
-   (append
-    `(let ([,f-id ,(append `(λ ,id ,f-body) f-body-2)]) ,body)
-    body2)]
-  [`(local [(define (,f-id (,id ...))
-              ,f-body
-              ,f-body-2
-              ...)
-            ,define2 ...]
-      ,body
-      ,body2
-      ...)
-   (append
-    `(let ([,f-id ,(append `(λ ,id ,f-body) f-body-2)])
-       ,(append `(local ,define2 ,body) body2)))])
+      ..1)
+   (append `(let ,(map (λ (fid) `(,fid (block))) f-id) .
+              ,(map (λ (fid id f-body) `(set! ,fid (λ ,id . ,f-body))) f-id id f-body))
+           `((block . ,body)))])
 
 (module+ test
-  (check-equal? ((transformer-function T:local) '(local [(define (f (a b)) (*datum* 99))] (*datum* 100)))
-                '(let ([f (λ (a b) (*datum* 99))]) (*datum* 100)))
-  (check-equal? (expand '(local [(define (f (a b)) (*app* b (*app* a (*datum* 99))))]
-                           (*app* f (*datum* 100)))
-                        Ts)
+  (check-equal? (expand '(local [(define (f a b) (a 99))]
+                           (f 100 101)) Ts)
                 '(L0:
                   app
-                  (L0: λ (f) (L0: app (L0: var f) (L0: datum 100)))
-                  (L0: λ (a) (L0: λ (b) (L0: app (L0: var b) (L0: app (L0: var a) (L0: datum 99)))))))
-  (check-equal? ((transformer-function T:local) '(local [(define (f (a b)) (*datum* 99))
-                                                         (define (g (c d)) (*datum* 101))] (*datum* 100)))
-                '(let ([f (λ (a b) (*datum* 99))])
-                   (local [(define (g (c d)) (*datum* 101))]
-                     (*datum* 100))))
+                  (L0: λ (f)
+                       (L0: app
+                            (L0: λ (_) (L0: app (L0: app (L0: var f) (L0: datum 100)) (L0: datum 101)))
+                            (L0: set! f (L0: λ (a) (L0: λ (b) (L0: app (L0: var a) (L0: datum 99)))))))
+                  (L0: datum 0)))
   
-  (check-equal? (expand '(local [(define (f (a b)) (*app* b (*app* a (*datum* 99))))
-                                 (define (g (c d)) (*app* d (*app* c (*datum* 101))))]
-                           (*app* g (*datum* 100)))
+  (check-equal? ((transformer-function T:local) '(local [(define (f a) 99)
+                                                         (define (g c) 101)]
+                                                   100))
+                '(let ((f (block)) (g (block))) (set! f (λ (a) 99)) (set! g (λ (c) 101)) (block 100)))
+  
+  (check-equal? (expand '(local [(define (f a) 99)
+                                 (define (g c) 101)]
+                           100)
                         Ts)
                 '(L0:
                   app
-                  (L0: λ (f) (L0:
-                              app
-                              (L0: λ (g) (L0: app (L0: var g) (L0: datum 100)))
-                              (L0: λ (c) (L0: λ (d) (L0: app (L0: var d) (L0: app (L0: var c) (L0: datum 101)))))))
-                  (L0: λ (a) (L0: λ (b) (L0: app (L0: var b) (L0: app (L0: var a) (L0: datum 99))))))))
+                  (L0:
+                   app
+                   (L0: λ (f)
+                        (L0: λ (g)
+                             (L0: app
+                                  (L0: λ (_) (L0: app (L0: λ (_) (L0: datum 100)) (L0: set! g (L0: λ (c) (L0: datum 101)))))
+                                  (L0: set! f (L0: λ (a) (L0: datum 99))))))
+                   (L0: datum 0))
+                  (L0: datum 0))))
+
 
 
 ; and or
@@ -425,10 +417,17 @@
 
 
 
+
 (define-transformer T:cond cond
   [`(cond [,cond ,res ...])
    (append `(when ,cond)
            res)] 
+  [`(cond [,cond ,res ...]
+          ,conds ...
+          [else ,else-res])
+   (append `(cond (,cond . ,res))
+           conds
+           `((1 ,else-res)))]
   [`(cond [,cond ,res ...]
           ,conds ...)
    `(L0: if ,cond
@@ -446,7 +445,14 @@
                 '(L0: if (*datum* 0)
                       (block (*datum* 99))
                       (cond [(*datum* 1) (*datum* 100)]
-                            [(*datum* 2) (*datum* 102)]))))
+                            [(*datum* 2) (*datum* 102)])))
+  (check-equal? ((transformer-function T:cond)
+                 '(cond [(*datum* 0) (*datum* 99)]
+                        [(*datum* 1) (*datum* 100)]
+                        [else (*datum* 102)]))
+                '(cond [(*datum* 0) (*datum* 99)]
+                        [(*datum* 1) (*datum* 100)]
+                        [1 (*datum* 102)])))
 ; when
 ; ----
 #;(when <condition>
@@ -537,50 +543,28 @@
 (define-transformer T:returnable returnable
   [`(returnable ,e
                 ...)
-   (append `(let ([define return (*id* call/ec)])
-              )
-           e)])
-
-(module+ test
-  (check-equal? ((transformer-function T:returnable) '(returnable (*app* (*id* return) (*datum* 42))))
-                '(let ((define return (*id* call/ec)))
-                   (*app* (*id* return) (*datum* 42 )))))
+   `(call/ec (λ (return) . ,e))])
 
 (define-transformer T:breakable breakable
   [`(breakable ,e
                ...)
-   (append `(let ([define break (*id* call/ec)])
-              )
-           e)])
-
-(module+ test
-  (check-equal? ((transformer-function T:breakable) '(breakable (*app* (*id* break) (*datum* 42))))
-                '(let ((define break (*id* call/ec)))
-                   (*app* (*id* break) (*datum* 42 )))))
+   `(call/ec (λ (break) . ,e))])
 
 (define-transformer T:continuable continuable
   [`(continuable ,e
                  ...)
-   (append `(let ([define continue (*id* call/ec)])
-              )
-           e)])
-
-(module+ test
-  (check-equal? ((transformer-function T:continuable) '(continuable (*app* (*id* continue) (*datum* 42))))
-                '(let ((define continue (*id* call/ec)))
-                   (*app* (*id* continue) (*datum* 42)))))
+   `(call/ec (λ (continue) . ,e))])
 
 
 ; List of all the transformations.
 (define Ts (list T:*id* T:*datum*
                  T:set! T:if
-                 T:λ T:*app*
+                 T:λ T:*app* 
                  T:block
                  T:let T:local
                  T:cond T:when T:while
                  T:breakable T:continuable T:returnable
-                 T:and T:or
-                 #;T:>>))
+                 T:and T:or))
 
 ; Standard Library
 ; ----------------
@@ -590,20 +574,20 @@
            ; Boolean logic
            ; -------------
            ; (not b) : the negation of b, implemented with ‘if’
-           (define (not (b)) (if b 0 1)) ; Added to testsuite
+           (define (not b) (if b 0 1)) ; Added to testsuite
            ; Arithmetic
            ; ----------
            ; (⊖ a) : the negative of a
-           (define (⊖ (a)) (* (*datum* -1) a)) ; Added to testsuite
+           (define (⊖ a) (* -1 a)) ; Added to testsuite
            ; (- a b) : the difference between a and b
-           (define (- (a b)) (+ a (⊖ b))) ; Added to testsuite
+           (define (- a b) (+ a (⊖ b))) ; Added to testsuite
            ; (= a b) : whether a is equal to b
-           #;(define (= (a b)) (if (and (not (< a b)) (not (< (- b a) 0))) 1 0))
+           ;(define (= a b) (if (and (not (< a b)) (not (< (- b a) 0))) 1 0))
            ; (not (< (- 5 1) 0)) :== (not (< 252 0)) because $-2 wraps around in x86. TODO: How to represent negative integers in x86?
-           (define (= (a b)) (if (and (not (< a b)) (not (< (⊖ a) (⊖ b)))) 1 0)) ; Added to testsuite
+           (define (= a b) (if (and (not (< a b)) (not (< (⊖ a) (⊖ b)))) 1 0)) ; Added to testsuite
            ; (> a b) : whether a is greater than b
-           (define (> (a b)) (if (and (not (< a b)) (not (= a b))) 1 0)) ; Added to testsuite
+           #;(define (> a b) (if (and (not (< a b)) (not (= a b))) 1 0)) ; Added to testsuite
            ; (>= a b) : whether a is greater than or equal to b
-           (define (>= (a b)) (if (not (< a b)) 1 0)) ; Added to testsuite
+           (define (>= a b) (if (not (< a b)) 1 0)) ; Added to testsuite
            ]
      ,e))
