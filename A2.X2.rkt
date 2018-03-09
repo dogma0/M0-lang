@@ -344,25 +344,6 @@
                                       result))
                      stack-pointer)))
 
-#;(define (call/ec f)
-    (define current-stack-pointer stack-pointer)
-    (define k (λ (r)
-                (set! stack-pointer current-stack-pointer)
-                (set! result r)))
-    (f k))
-#;(define (call/ec f)
-    (define current-stack-pointer stack-pointer)
-    (f (λ (r)
-         (set! stack-pointer current-stack-pointer)
-         (set! result r))))
-
-#; (define (call/ec f)
-     (f ((λ (sp) (λ (r)
-                   (set! stack-pointer sp)
-                   (set! result r)))
-         stack-pointer)))
-
-
 ; The CPU's stack pointer is a register:
 (define stack-pointer (register 'rsp))
 
@@ -385,17 +366,6 @@
    (closure 'ec) ; create closure_ec and put it into result
    (retq)))
 
-#;(define (call_ec)
-    (labelled
-     'call_ec
-     (closure 'make_ec)
-     (pushq result) ; stack = [closure_make_ec]
-     (movq stack-pointer result) 
-     (call) ; result = ((closure 'make_ec) stack-pointer)
-     (pushq (★ env 1)) ; stack: [f]
-     (call)
-     (retq)))
-
 (define (call_ec)
   (labelled
    'call_ec
@@ -404,11 +374,28 @@
    (closure 'make_ec)
    (pushq result) ; stack [f closure_make_ec]
    (movq stack-pointer result)
-   (call) ; after this: result = ((closure make_ec) stack-pointer)
    (call)
+   ; after first call, result = ((closure make_ec) stack-pointer). During call, the state of stack goes from [f closure_make_ec] -> [f] -> [f cur_env] ->
+   ; [f cur_env return for calling make_ec] -> [f cur_env] -> [f]
+   (call)
+   ; Similarly, [f] -> [] -> [cur_env] ->
+   ; [cur_env return_addr_for_calling f]. From this point, f can manipulate stack in anyway and saved stack pointer will point to return address for calling f and ready to be jumped to.
    (retq)))
 
-
+; For reference
+#; (define (call)
+     (list
+      (popq temp) ; closure[0] = func_ptr and closure[1] = closure_env_ptr
+      (pushq env)
+      ; --- Making and changing into new environment ---
+      (movq (★ temp 1) env) ; next[0] = temp[1] or closure_env_ptr
+      (movq env (★ next 0))
+      (movq result (★ next 1)) ; next[1] = result or argument
+      (movq next env) ; env = next, we want env[0] == f and env[1] == closure_env_ptr
+      (addq (constant 16) next)
+      ; --- End Making and changing into new environment ---
+      (callq temp)
+      (popq env)))
 
 ; Put X2 versions of call_ec, make_ec, and ec in RTL below.
 
