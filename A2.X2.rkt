@@ -547,7 +547,7 @@
                                    (and (>= 2 2) (> 2 1)))]
                            (f 0)))
 
-(define fib-testcase '(local [(define (fib (n))
+(define fib-testcase '(local [(define (fib n)
                                 (cond [(= n 1) 1]
                                       [(= n 2) 1]
                                       [else (+ (fib (- n 1))
@@ -557,10 +557,10 @@
 
 
 
-#;{(define out (open-output-file "file.s" 	#:exists 'replace))
+(define out (open-output-file "file.s" 	#:exists 'replace))
 (define assembly (L2→X2 (L1→L2 (L0→L1 (M0→L0 fib-testcase)))))
 (map (λ (x) (display x out)) assembly)
-(close-output-port out)};#
+(close-output-port out)
 
 
 

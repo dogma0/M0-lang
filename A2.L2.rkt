@@ -43,31 +43,36 @@
      (compiled:L2 `((L2: closure ,(lambda_ n)))
                   (append `((,(lambda_ n) ,(compiled:L2-code (L1→L2 expr)))) (compiled:L2-λs (L1→L2 expr))))]
     [`(L1: app ,e1 ,e2)
+     (define e1-comp (L1→L2 e1))
+     (define e2-comp (L1→L2 e2))
      (compiled:L2 (append
-                   (compiled:L2-code (L1→L2 e1))
+                   (compiled:L2-code e1-comp)
                    '((L2: push_result))
-                   (compiled:L2-code (L1→L2 e2))
+                   (compiled:L2-code e2-comp)
                    '((L2: call)))
                   (append
-                   (compiled:L2-λs (L1→L2 e1))
-                   (compiled:L2-λs (L1→L2 e2))))]
+                   (compiled:L2-λs e1-comp)
+                   (compiled:L2-λs e2-comp)))]
     [`(L1: set! ,id ,expr)
      (compiled:L2
       (append (compiled:L2-code (L1→L2 expr)) `((L2: set ,id)))
       (compiled:L2-λs (L1→L2 expr)))]
     [`(L1: if ,n ,e1 ,e2 ,e3)
+     (define e1-comp (L1→L2 e1))
+     (define e2-comp (L1→L2 e2))
+     (define e3-comp (L1→L2 e3))
      (compiled:L2
       (append
-       (compiled:L2-code (L1→L2 e1))
+       (compiled:L2-code e1-comp)
        `((L2: jump_false ,(format-symbol "else_~a" n)))
-       (compiled:L2-code (L1→L2 e2))
+       (compiled:L2-code e2-comp)
        `((L2: jump ,(format-symbol "end_~a" n)))
        `((L2: label ,(format-symbol "else_~a" n)))
-       (compiled:L2-code (L1→L2 e3))
+       (compiled:L2-code e3-comp)
        `((L2: label ,(format-symbol "end_~a" n))))
-      (append (compiled:L2-λs (L1→L2 e1))
-              (compiled:L2-λs (L1→L2 e2))
-              (compiled:L2-λs (L1→L2 e3))))]
+      (append (compiled:L2-λs e1-comp)
+              (compiled:L2-λs e2-comp)
+              (compiled:L2-λs e3-comp)))]
     ['(L1: var +)
      (compiled:L2 '((L2: closure make_add)) '())]
     ['(L1: var *)
