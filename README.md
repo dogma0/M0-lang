@@ -11,8 +11,8 @@ And we write `(not 5)` as `(if 5 0 1)` in this example, because it's easier to e
 Side note: `not` can be defined in terms of the primitive `if`, and shipped in a runtime library.
 
 The compilation stages will be:
-; first compilation step
-; Simply wrap expression in a tag `(L0: ...)` and literal in the datum tag `(L0: datum ...)`
+- first compilation step
+- Simply wrap expression in a tag `(L0: ...)` and literal in the datum tag `(L0: datum ...)` 
 `(M0→L0 '(if 5 0 1)) ; -> '(L0: if (L0: datum 5) (L0: datum 0) (L0: datum 1))`
 
 ; second compilation step
